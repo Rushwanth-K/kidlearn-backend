@@ -67,7 +67,6 @@ router.get('/history/:parentId', async (req, res) => {
       JOIN children c ON wh.child_id = c.id
       WHERE c.parent_id = ?
       ORDER BY wh.watched_at DESC
-      LIMIT 20
     `, [parentId]);
 
     res.json(history);
