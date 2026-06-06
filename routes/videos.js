@@ -52,7 +52,6 @@ router.get('/history/:parentId', async (req, res) => {
     const { parentId } = req.params;
 
     const [history] = await db.query(`
-      SELECT 
        SELECT 
         wh.id,
         wh.watched_at,
