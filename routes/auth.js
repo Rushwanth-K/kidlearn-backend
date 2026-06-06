@@ -28,10 +28,11 @@ router.post('/register', async (req, res) => {
       [name, email, hashedPassword]
     );
 
-    res.json({ 
-      message: 'Account created successfully',
-      parentId: result.insertId 
-    });
+    res.json({
+  message: 'Account created successfully',
+  parentId: result.insertId,
+  name: name   // ✅ add this line
+});
 
   } catch (error) {
     res.status(500).json({ error: error.message });
