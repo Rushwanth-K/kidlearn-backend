@@ -71,7 +71,8 @@ router.get('/history/:parentId', async (req, res) => {
 
     res.json(history);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.log('HISTORY ERROR:', error.message);
+res.status(500).json({ error: error.message });
   }
 });
 
