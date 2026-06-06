@@ -53,12 +53,14 @@ router.get('/history/:parentId', async (req, res) => {
 
     const [history] = await db.query(`
       SELECT 
+       SELECT 
         wh.id,
         wh.watched_at,
         wh.duration_watched,
         v.title,
         v.category,
         v.duration,
+        v.url,
         c.name as child_name
       FROM watch_history wh
       JOIN videos v ON wh.video_id = v.id
