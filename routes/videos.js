@@ -120,5 +120,37 @@ router.put('/screentime/:childId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// GET /api/videos/school/:standardId — get school videos by standard ID
+router.get('/school/:standardId', async (req, res) => {
+  try {
+    const { standardId } = req.params;
 
+    const [videos] = await db.query(`
+      SELECT * FROM school_videos 
+      WHERE standard_id = ? AND is_approved = 1
+      ORDER BY created_at DESC
+    `, [standardId]);
+
+    res.json(videos);
+  } catch (error) {
+    console.log('SCHOOL VIDEOS ERROR:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/videos/school/link — link child to school standard
+router.post('/school/link', async (req, res) => {
+  try {
+    const { child_id, standard_id } = req.body;
+
+    await db.query(
+      'UPDATE children SET standard_id = ? WHERE id = ?',
+      [standard_id, child_id]
+    );
+
+    res.json({ message: 'School linked successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 module.exports = router;
