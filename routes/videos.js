@@ -120,16 +120,21 @@ router.put('/screentime/:childId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-// GET /api/videos/school/:standardId — get school videos by standard ID
-router.get('/school/:standardId', async (req, res) => {
+// GET /api/videos/school/:schoolId/:standardId — get school videos by standard ID
+router.get('/school/:schoolId/:standardId', async (req, res) => {
   try {
-    const { standardId } = req.params;
+    const { schoolId, standardId } = req.params;
 
     const [videos] = await db.query(`
       SELECT * FROM school_videos 
-      WHERE standard_id = ? AND is_approved = 1
+      WHERE school_id = ? AND standard_id = ? AND is_approved = 1
       ORDER BY created_at DESC
-    `, [standardId]);
+    `, [schoolId, standardId]);
+
+    // ✅ If no videos found — invalid code
+    if (videos.length === 0) {
+      return res.status(404).json({ error: 'Invalid school or class code' });
+    }
 
     res.json(videos);
   } catch (error) {
