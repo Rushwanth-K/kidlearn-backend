@@ -18,10 +18,16 @@ app.use(express.json());      // allows reading JSON data from requests
 const authRoutes = require('./routes/auth');
 const videoRoutes = require('./routes/videos');
 const childrenRoutes = require('./routes/children');
+const schoolRoutes = require('./routes/schools');
+const teacherRoutes = require('./routes/teachers');
+const creatorRoutes = require('./routes/creators');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/children', childrenRoutes);
+app.use('/api/schools', schoolRoutes);
+app.use('/api/teachers', teacherRoutes);
+app.use('/api/creators', creatorRoutes);
 
 // Test route — to check if server is running
 app.get('/', (req, res) => {
