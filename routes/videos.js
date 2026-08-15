@@ -158,4 +158,59 @@ router.post('/school/link', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// POST /api/videos/creator-upload — content creator uploads a video
+// The video file was already uploaded to Cloudinary by the React portal;
+// this route just saves the returned URL + metadata into MySQL
+router.post('/creator-upload', async (req, res) => {
+  try {
+    const { title, url, category, age_min, age_max, duration, is_short, creator_id } = req.body;
+
+    if (!title || !url || !category || !creator_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const [result] = await db.query(
+      `INSERT INTO videos (title, url, category, age_min, age_max, duration, is_short, is_approved, creator_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      [title, url, category, age_min, age_max, duration, is_short, creator_id]
+    );
+
+    res.json({
+      message: 'Video uploaded successfully',
+      videoId: result.insertId
+    });
+  } catch (error) {
+    console.log('CREATOR UPLOAD ERROR:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/videos/teacher-upload — teacher uploads a video for their school
+// The video file was already uploaded to Cloudinary by the React portal;
+// this route just saves the returned URL + metadata into MySQL
+router.post('/teacher-upload', async (req, res) => {
+  try {
+    const { title, url, category, school_id, standard_id, duration, teacher_id } = req.body;
+
+    if (!title || !url || !category || !school_id || !standard_id || !teacher_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const [result] = await db.query(
+      `INSERT INTO school_videos (title, url, category, school_id, standard_id, duration, is_approved, teacher_id)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
+      [title, url, category, school_id, standard_id, duration, teacher_id]
+    );
+
+    res.json({
+      message: 'Video uploaded successfully',
+      videoId: result.insertId
+    });
+  } catch (error) {
+    console.log('TEACHER UPLOAD ERROR:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
