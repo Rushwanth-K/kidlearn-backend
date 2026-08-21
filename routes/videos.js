@@ -212,5 +212,78 @@ router.post('/teacher-upload', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// GET /api/videos/my-uploads/:creatorId — list a creator's own uploaded videos
+router.get('/my-uploads/:creatorId', async (req, res) => {
+  try {
+    const { creatorId } = req.params;
+
+    const [videos] = await db.query(
+      'SELECT * FROM videos WHERE creator_id = ? ORDER BY created_at DESC',
+      [creatorId]
+    );
+
+    res.json(videos);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/videos/my-uploads/:creatorId/:videoId — creator deletes their own video
+router.delete('/my-uploads/:creatorId/:videoId', async (req, res) => {
+  try {
+    const { creatorId, videoId } = req.params;
+
+    // Only delete if this video actually belongs to this creator —
+    // prevents a creator from deleting someone else's video by guessing an ID
+    const [result] = await db.query(
+      'DELETE FROM videos WHERE id = ? AND creator_id = ?',
+      [videoId, creatorId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Video not found or you do not have permission to delete it' });
+    }
+
+    res.json({ message: 'Video deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/videos/teacher-uploads/:teacherId — list a teacher's own uploaded videos
+router.get('/teacher-uploads/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+
+    const [videos] = await db.query(
+      'SELECT * FROM school_videos WHERE teacher_id = ? ORDER BY created_at DESC',
+      [teacherId]
+    );
+
+    res.json(videos);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/videos/teacher-uploads/:teacherId/:videoId — teacher deletes their own video
+router.delete('/teacher-uploads/:teacherId/:videoId', async (req, res) => {
+  try {
+    const { teacherId, videoId } = req.params;
+
+    const [result] = await db.query(
+      'DELETE FROM school_videos WHERE id = ? AND teacher_id = ?',
+      [videoId, teacherId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Video not found or you do not have permission to delete it' });
+    }
+
+    res.json({ message: 'Video deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 module.exports = router;
