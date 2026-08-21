@@ -1,6 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../database');
+const cloudinary = require('cloudinary').v2;
+
+// Configure Cloudinary with your account credentials (server-side only, never exposed to frontend)
+cloudinary.config({
+  cloud_name: 'dh3whmccb',
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // GET /api/videos — fetch videos with optional filters
 router.get('/', async (req, res) => {
@@ -87,7 +95,6 @@ router.get('/screentime/:childId', async (req, res) => {
     );
 
     if (rows.length === 0) {
-      // Create today's record if not exists
       await db.query(
         'INSERT INTO screen_time (child_id, date, total_seconds, limit_seconds) VALUES (?, ?, 0, 2700)',
         [childId, today]
@@ -120,6 +127,7 @@ router.put('/screentime/:childId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 // GET /api/videos/school/:schoolId/:standardId — get school videos by standard ID
 router.get('/school/:schoolId/:standardId', async (req, res) => {
   try {
@@ -131,7 +139,6 @@ router.get('/school/:schoolId/:standardId', async (req, res) => {
       ORDER BY created_at DESC
     `, [schoolId, standardId]);
 
-    // ✅ If no videos found — invalid code
     if (videos.length === 0) {
       return res.status(404).json({ error: 'Invalid school or class code' });
     }
@@ -160,20 +167,18 @@ router.post('/school/link', async (req, res) => {
 });
 
 // POST /api/videos/creator-upload — content creator uploads a video
-// The video file was already uploaded to Cloudinary by the React portal;
-// this route just saves the returned URL + metadata into MySQL
 router.post('/creator-upload', async (req, res) => {
   try {
-    const { title, url, category, age_min, age_max, duration, is_short, creator_id } = req.body;
+    const { title, url, category, age_min, age_max, duration, is_short, creator_id, public_id } = req.body;
 
     if (!title || !url || !category || !creator_id) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const [result] = await db.query(
-      `INSERT INTO videos (title, url, category, age_min, age_max, duration, is_short, is_approved, creator_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
-      [title, url, category, age_min, age_max, duration, is_short, creator_id]
+      `INSERT INTO videos (title, url, category, age_min, age_max, duration, is_short, is_approved, creator_id, public_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [title, url, category, age_min, age_max, duration, is_short, creator_id, public_id]
     );
 
     res.json({
@@ -187,20 +192,18 @@ router.post('/creator-upload', async (req, res) => {
 });
 
 // POST /api/videos/teacher-upload — teacher uploads a video for their school
-// The video file was already uploaded to Cloudinary by the React portal;
-// this route just saves the returned URL + metadata into MySQL
 router.post('/teacher-upload', async (req, res) => {
   try {
-    const { title, url, category, school_id, standard_id, duration, teacher_id } = req.body;
+    const { title, url, category, school_id, standard_id, duration, teacher_id, public_id } = req.body;
 
     if (!title || !url || !category || !school_id || !standard_id || !teacher_id) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const [result] = await db.query(
-      `INSERT INTO school_videos (title, url, category, school_id, standard_id, duration, is_approved, teacher_id)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
-      [title, url, category, school_id, standard_id, duration, teacher_id]
+      `INSERT INTO school_videos (title, url, category, school_id, standard_id, duration, is_approved, teacher_id, public_id)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+      [title, url, category, school_id, standard_id, duration, teacher_id, public_id]
     );
 
     res.json({
@@ -212,6 +215,7 @@ router.post('/teacher-upload', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 // GET /api/videos/my-uploads/:creatorId — list a creator's own uploaded videos
 router.get('/my-uploads/:creatorId', async (req, res) => {
   try {
@@ -233,15 +237,34 @@ router.delete('/my-uploads/:creatorId/:videoId', async (req, res) => {
   try {
     const { creatorId, videoId } = req.params;
 
-    // Only delete if this video actually belongs to this creator —
-    // prevents a creator from deleting someone else's video by guessing an ID
-    const [result] = await db.query(
+    // First, look up the video to get its Cloudinary public_id before deleting the row
+    const [rows] = await db.query(
+      'SELECT public_id FROM videos WHERE id = ? AND creator_id = ?',
+      [videoId, creatorId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Video not found or you do not have permission to delete it' });
+    }
+
+    const publicId = rows[0].public_id;
+
+    // Delete the database row
+    await db.query(
       'DELETE FROM videos WHERE id = ? AND creator_id = ?',
       [videoId, creatorId]
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Video not found or you do not have permission to delete it' });
+    // Delete the actual file from Cloudinary too, so storage doesn't pile up unused
+    // resource_type: 'video' is required — Cloudinary defaults to 'image' otherwise
+    if (publicId) {
+      try {
+        await cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
+      } catch (cloudinaryError) {
+        // The database row is already deleted — log this but don't fail the whole request,
+        // since the video is already gone from the app either way
+        console.log('CLOUDINARY DELETE ERROR:', cloudinaryError.message);
+      }
     }
 
     res.json({ message: 'Video deleted successfully' });
@@ -271,13 +294,28 @@ router.delete('/teacher-uploads/:teacherId/:videoId', async (req, res) => {
   try {
     const { teacherId, videoId } = req.params;
 
-    const [result] = await db.query(
+    const [rows] = await db.query(
+      'SELECT public_id FROM school_videos WHERE id = ? AND teacher_id = ?',
+      [videoId, teacherId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Video not found or you do not have permission to delete it' });
+    }
+
+    const publicId = rows[0].public_id;
+
+    await db.query(
       'DELETE FROM school_videos WHERE id = ? AND teacher_id = ?',
       [videoId, teacherId]
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Video not found or you do not have permission to delete it' });
+    if (publicId) {
+      try {
+        await cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
+      } catch (cloudinaryError) {
+        console.log('CLOUDINARY DELETE ERROR:', cloudinaryError.message);
+      }
     }
 
     res.json({ message: 'Video deleted successfully' });
