@@ -9,7 +9,12 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
-
+// Injects Cloudinary's automatic quality + format optimization into a video URL.
+// This shrinks file size per view without a visible quality drop on phone screens.
+function optimizeCloudinaryUrl(url) {
+  if (!url) return url;
+  return url.replace('/upload/', '/upload/q_auto,f_auto/');
+}
 // GET /api/videos — fetch videos with optional filters
 router.get('/', async (req, res) => {
   try {
@@ -29,9 +34,15 @@ router.get('/', async (req, res) => {
     }
 
     query += ' ORDER BY created_at DESC';
+const [videos] = await db.query(query, params);
 
-    const [videos] = await db.query(query, params);
-    res.json(videos);
+// Apply automatic quality/format optimization to every video URL before sending
+const optimizedVideos = videos.map(v => ({
+  ...v,
+  url: optimizeCloudinaryUrl(v.url)
+}));
+
+res.json(optimizedVideos);
 
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -143,7 +154,12 @@ router.get('/school/:schoolId/:standardId', async (req, res) => {
       return res.status(404).json({ error: 'Invalid school or class code' });
     }
 
-    res.json(videos);
+    const optimizedVideos = videos.map(v => ({
+  ...v,
+  url: optimizeCloudinaryUrl(v.url)
+}));
+
+res.json(optimizedVideos);
   } catch (error) {
     console.log('SCHOOL VIDEOS ERROR:', error.message);
     res.status(500).json({ error: error.message });
