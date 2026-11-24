@@ -9,11 +9,11 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
-// Injects Cloudinary's automatic quality + format optimization into a video URL.
-// This shrinks file size per view without a visible quality drop on phone screens.
+// Cloudinary counts video transformations per second of video, so keep this
+// minimal: quality only, no format switching (f_auto), to avoid extra copies.
 function optimizeCloudinaryUrl(url) {
   if (!url) return url;
-  return url.replace('/upload/', '/upload/q_auto,f_auto/');
+  return url.replace('/upload/', '/upload/q_auto/');
 }
 // GET /api/videos — fetch videos with optional filters
 router.get('/', async (req, res) => {
